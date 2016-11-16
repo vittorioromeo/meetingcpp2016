@@ -15,6 +15,7 @@
 // * Acceleration (2D float vector).
 // * Color (SFML color struct).
 // * Circle (radius float).
+// * Life (lifetime float).
 
 // The following systems will execute the simulation:
 //
@@ -52,6 +53,11 @@
 //                          later on the SFML RenderWindow.
 //   (inner parallelism allowed)
 //   (depends on: Solve contacts)
+//
+// * Life: decrements the remaining lifetime of every particle and creates
+//         new ones upon particle death.
+//   (inner parallelism allowed)
+//   (no dependencies)
 
 namespace example
 {
@@ -479,7 +485,8 @@ namespace example
             }
         };
 
-        // TODO:
+        // This system decrements the life of every particle,
+        // spawning a new one in a random location upon death.
         struct life
         {
             template <typename TData>
@@ -495,13 +502,6 @@ namespace example
                             data.kill_entity(eid);
                             data.defer([](auto& proxy)
                                 {
-                                    auto random_position = []
-                                    {
-                                        return vec2f{
-                                            rndf(left_bound, right_bound),
-                                            rndf(top_bound, bottom_bound)};
-                                    };
-
                                     mk_particle(
                                         proxy, random_position(), rndf(1, 4));
                                 });
@@ -636,7 +636,8 @@ namespace example
                     .read(ct::circle, ct::position, ct::color)
                     .output(ss::output<std::vector<sf::Vertex>>);
 
-            // TODO:
+            // Particle death/creation system.
+            // * Multithreaded.
             constexpr auto ssig_life =
                 ss::make(st::life)
                     .parallelism(split_evenly_per_core)
@@ -744,13 +745,9 @@ namespace example
                 proxy.for_system_outputs(st::render_colored_circle,
                     [&rt](auto&, auto& va)
                     {
-                        // TODO:
-                        if(true)
-                        {
-                            rt.draw(va.data(), va.size(),
-                                sf::PrimitiveType::Triangles,
-                                sf::RenderStates::Default);
-                        }
+                        rt.draw(va.data(), va.size(),
+                            sf::PrimitiveType::Triangles,
+                            sf::RenderStates::Default);
                     });
             });
     }
