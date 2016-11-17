@@ -5,9 +5,10 @@
 
 #include "./utils/dependencies.hpp"
 
-// The following example consists in a particle simulations. All particles are
-// massless and collide with each other in a perfectly inelastic way. The
-// particles also collide with the boundaries of the window.
+// The example consists of a simple particle simulation. All particles:
+// * Are massless and collide with each other in a perfectly inelastic way.
+// * Collide with the boundaries of the window.
+// * Are continuously destroyed and replaced by new particles.
 
 // Every particle will have the following components:
 // * Position (2D float vector).
@@ -75,11 +76,6 @@ namespace example
 
         // Distance between entities.
         float _dist;
-
-        contact(ecst::entity_id e0, ecst::entity_id e1, float dist) noexcept
-            : _e0(e0), _e1(e1), _dist(dist)
-        {
-        }
     };
 
     // Data for the assignment of an entity to a cell of the spatial
@@ -88,11 +84,6 @@ namespace example
     {
         ecst::entity_id _e;
         sz_t _cell_x, _cell_y;
-
-        sp_data(ecst::entity_id e, sz_t cell_x, sz_t cell_y) noexcept
-            : _e(e), _cell_x(cell_x), _cell_y(cell_y)
-        {
-        }
     };
 
     // Component definitions.
@@ -151,10 +142,6 @@ EXAMPLE_SYSTEM_TAG(life);
 
 namespace example
 {
-    // Forward-declaration of a function that creates a new particle entity.
-    template <typename TProxy>
-    void mk_particle(TProxy& proxy, const vec2f& position, float radius);
-
     // System definitions.
     namespace s
     {
@@ -525,31 +512,17 @@ namespace example
             namespace cs = ecst::signature::component;
             namespace csl = ecst::signature_list::component;
 
-            // Store `c::acceleration`, `c::velocity`, `c::position`, and `c::life`
-            // in separate contiguous buffers (SoA).
-            constexpr auto cs_acceleration =
-                cs::make(ct::acceleration).contiguous_buffer();
-
-            constexpr auto cs_velocity =
-                cs::make(ct::velocity).contiguous_buffer();
-
-            constexpr auto cs_position =
-                cs::make(ct::position).contiguous_buffer();
-
-            constexpr auto cs_life =
-                cs::make(ct::life).contiguous_buffer();
-
-            // Store `c::color` and `c::circle` in the same contiguous buffer,
-            // interleaved (AoS).
-            constexpr auto cs_rendering =
-                cs::make(ct::color, ct::circle).contiguous_buffer();
-
             return csl::make(
-                cs_acceleration,
-                cs_velocity,
-                cs_position,
-                cs_rendering,
-                cs_life
+                // Store `c::acceleration`, `c::velocity`, `c::position`, and `c::life`
+                // in separate contiguous buffers (SoA).
+                cs::make(ct::acceleration).contiguous_buffer(),
+                cs::make(ct::velocity).contiguous_buffer(),
+                cs::make(ct::position).contiguous_buffer(),
+                cs::make(ct::life).contiguous_buffer(),
+
+                // Store `c::color` and `c::circle` in the same contiguous buffer,
+                // interleaved (AoS).
+                cs::make(ct::color, ct::circle).contiguous_buffer()
                 );
         }
 
@@ -684,13 +657,6 @@ namespace example
     template <typename TContext>
     void init_ctx(TContext& ctx)
     {
-        auto random_position = []
-        {
-            return vec2f{
-                rndf(left_bound, right_bound),
-                rndf(top_bound, bottom_bound)};
-        };
-
         ctx.step([&](auto& proxy)
             {
                 for(sz_t i = 0; i < initial_particle_count; ++i)
@@ -705,15 +671,18 @@ namespace example
     {
         namespace sea = ::ecst::system_execution_adapter;
 
+        // Tags of frametime-dependent systems.
         auto ft_tags =
             sea::t(st::acceleration, st::velocity, st::life);
 
+        // Tags of frametime-indepedent systems.
         auto nonft_tags = sea::t(st::keep_in_bounds, st::collision,
             st::solve_contacts, st::render_colored_circle);
 
         ctx.step([&rt, dt, &ft_tags, &nonft_tags](auto& proxy)
             {
                 proxy.execute_systems()(
+                    // Simple execution with `for_subtasks`.
                     ft_tags.for_subtasks([dt](auto& s, auto& data)
                         {
                             s.process(dt, data);
@@ -722,6 +691,8 @@ namespace example
                         {
                             s.process(data);
                         }),
+
+                    // Detailed execution with `detailed_instance`.
                     sea::t(st::spatial_partition)
                         .detailed_instance([&proxy](auto& i, auto& executor)
                             {
@@ -742,6 +713,8 @@ namespace example
                                     });
                             }));
 
+                // After execution, the outputs of every subtask of a
+                // system can be iterated upon.
                 proxy.for_system_outputs(st::render_colored_circle,
                     [&rt](auto&, auto& va)
                     {
@@ -752,8 +725,6 @@ namespace example
             });
     }
 }
-
-#include "./utils/pres_game_app.hpp"
 
 int main()
 {
