@@ -6,7 +6,7 @@ Main code repository: [SuperV1234/ecst](https://github.com/SuperV1234/ecst)
 
 * [Meeting C++ page](https://meetingcpp.com/index.php/tv16/items/11.html)
 
-* [~~YouTube video~~](#) *(not yet available)*
+* [YouTube video](https://www.youtube.com/watch?v=51qSGUtaJwc&list=PLRyNF2Y6sca06lulacjysyu8RIwfKgYoY&index=55)
 
 ---
 
